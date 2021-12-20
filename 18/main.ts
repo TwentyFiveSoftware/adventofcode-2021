@@ -3,195 +3,141 @@ import * as fs from 'fs';
 const input: string = fs.readFileSync(`${__dirname}/input.txt`).toString();
 const numbers: string[] = input.split('\n');
 
-
-class BinaryTree {
-    private left: BinaryTree | number = -1;
-    private right: BinaryTree | number = -1;
-    private readonly parent: BinaryTree | null = null;
-
-    constructor(n: never, parent: BinaryTree | null = null) {
-        this.parent = parent;
-        this.left = isNaN(n[0]) ? new BinaryTree(n[0], this) : Number(n[0]);
-        this.right = isNaN(n[1]) ? new BinaryTree(n[1], this) : Number(n[1]);
-    }
-
-    private getLeftTree(): BinaryTree | null {
-        return (this.left instanceof BinaryTree) ? (this.left as BinaryTree) : null;
-    }
-
-    private getRightTree(): BinaryTree | null {
-        return (this.right instanceof BinaryTree) ? (this.right as BinaryTree) : null;
-    }
-
-    public explode(depth: number = 0): boolean {
-        if (depth >= 4) {
-            this.explodeAddToLeft();
-            this.explodeAddToRight();
-            this.explodeReplaceWithZero();
-            return true;
-        }
-
-        if (this.getLeftTree()?.explode(depth + 1))
-            return true;
-
-        if (this.getRightTree()?.explode(depth + 1))
-            return true;
-
-        return false;
-    }
-
-    private explodeAddToLeft() {
-        if (this.parent?.getRightTree() === this) {
-            if (this.parent?.getLeftTree() === null)
-                (this.parent.left as number) += (this.left as number);
-            else
-                this.parent?.getLeftTree()?.addToMostRightNumber(this.left as number);
-            return;
-        }
-
-        let p = this.parent;
-        let lastNode: BinaryTree = this;
-
-        while (p !== null) {
-            if (p.getRightTree() === lastNode) {
-                if (p.getLeftTree() === null)
-                    (p.left as number) += (this.left as number);
-                else
-                    p.getLeftTree()?.addToMostRightNumber(this.left as number);
-
-                break;
-            }
-
-            lastNode = p;
-            p = p.parent;
-        }
-    }
-
-    private explodeAddToRight() {
-        if (this.parent?.getLeftTree() === this) {
-            if (this.parent?.getRightTree() === null)
-                (this.parent.right as number) += (this.right as number);
-            else
-                this.parent?.getRightTree()?.addToMostLeftNumber(this.right as number);
-            return;
-        }
-
-        let p = this.parent;
-        let lastNode: BinaryTree = this;
-
-        while (p !== null) {
-            if (p.getLeftTree() === lastNode) {
-                if (p.getRightTree() === null)
-                    (p.right as number) += (this.right as number);
-                else
-                    p.getRightTree()?.addToMostLeftNumber(this.right as number);
-
-                break;
-            }
-
-            lastNode = p;
-            p = p.parent;
-        }
-    }
-
-    private addToMostLeftNumber(n: number) {
-        if (this.getLeftTree() !== null)
-            this.getLeftTree()?.addToMostLeftNumber(n);
-        else
-            (this.left as number) += n;
-    }
-
-    private addToMostRightNumber(n: number) {
-        if (this.getRightTree() !== null)
-            this.getRightTree()?.addToMostRightNumber(n);
-        else
-            (this.right as number) += n;
-    }
-
-    private explodeReplaceWithZero() {
-        if (this.parent !== null)
-            if (this.parent?.getRightTree() === this)
-                this.parent.right = 0;
-            else
-                this.parent.left = 0;
-    }
-
-    public split(): boolean {
-        if (this.getLeftTree()?.split())
-            return true;
-
-        if (this.getRightTree()?.split())
-            return true;
-
-        if (this.left >= 10) {
-            this.left = new BinaryTree(
-                [Math.floor((this.left as number) / 2), Math.ceil((this.left as number) / 2)] as never, this);
-            return true;
-
-        } else if (this.right >= 10) {
-            this.right = new BinaryTree(
-                [Math.floor((this.right as number) / 2), Math.ceil((this.right as number) / 2)] as never, this);
-            return true;
-        }
-
-        return false;
-    }
-
-    public stringify(): string {
-        const left = this.getLeftTree()?.stringify() ?? this.left;
-        const right = this.getRightTree()?.stringify() ?? this.right;
-        return `[${left},${right}]`;
-    }
-
-    public magnitude(): number {
-        const left: number = this.getLeftTree()?.magnitude() ?? Number(this.left);
-        const right: number = this.getRightTree()?.magnitude() ?? Number(this.right);
-        return left * 3 + right * 2;
-    }
+interface Value {
+    id: number;
+    value: number;
 }
 
-const reduceTree = (tree: BinaryTree) => {
-    let current: string = tree.stringify();
+let id = 0;
+
+const map = (n: never[]): never[] => {
+    n[0] = (Array.isArray(n[0]) ? map(n[0]) : { id: id++, value: n[0] }) as never;
+    n[1] = (Array.isArray(n[1]) ? map(n[1]) : { id: id++, value: n[1] }) as never;
+    return n;
+};
+
+const parse = (n: string): never => map(JSON.parse(n)) as never;
+
+const explode = (flatN: Value[], n: never[], depth: number = 0): { exploded: boolean, n: never[] } => {
+    if (depth >= 4 && !Array.isArray(n[0]) && !Array.isArray(n[1])) {
+        const left = n[0] as Value, right = n[1] as Value;
+
+        const valueToLeft = flatN[flatN.findIndex(x => x.id === left.id) - 1];
+        if (valueToLeft)
+            valueToLeft.value += left.value;
+
+        const valueToRight = flatN[flatN.findIndex(x => x.id === right.id) + 1];
+        if (valueToRight)
+            valueToRight.value += right.value;
+
+        return { exploded: true, n: { id: left.id, value: 0 } as Value as never };
+    }
+
+    if (Array.isArray(n[0])) {
+        const result = explode(flatN, n[0], depth + 1);
+        n[0] = result.n as never;
+
+        if (result.exploded)
+            return { exploded: true, n };
+    }
+
+    if (Array.isArray(n[1])) {
+        const result = explode(flatN, n[1], depth + 1);
+        n[1] = result.n as never;
+
+        if (result.exploded)
+            return { exploded: true, n };
+    }
+
+    return { exploded: false, n };
+};
+
+const split = (n: never[]): { split: boolean, n: never[] } => {
+    const splitValue = (value: Value): Value[] => [
+        { id: value.id, value: Math.floor(value.value / 2) },
+        { id: id++, value: Math.ceil(value.value / 2) },
+    ];
+
+    if (Array.isArray(n[0])) {
+        const result = split(n[0]);
+        if (result.split) {
+            n[0] = result.n as never;
+            return { split: true, n };
+        }
+
+    } else if ((n[0] as Value).value >= 10) {
+        n[0] = splitValue(n[0]) as never;
+        return { split: true, n };
+    }
+
+    if (Array.isArray(n[1])) {
+        const result = split(n[1]);
+        if (result.split) {
+            n[1] = result.n as never;
+            return { split: true, n };
+        }
+
+    } else if ((n[1] as Value).value >= 10) {
+        n[1] = splitValue(n[1]) as never;
+        return { split: true, n };
+    }
+
+    return { split: false, n };
+};
+
+const reduce = (n: never[]): never[] => {
+    let explodeResult, splitResult;
 
     do {
-        current = tree.stringify();
-
-        if (tree.explode())
+        explodeResult = explode(n.flat(Number.MAX_VALUE), n);
+        n = explodeResult.n;
+        if (explodeResult.exploded)
             continue;
 
-        tree.split();
-    } while (current !== tree.stringify());
+        splitResult = split(n);
+        n = splitResult.n;
+    } while (explodeResult?.exploded || splitResult?.split);
+
+    return n;
 };
 
-const addNumbers = (n1: string, n2: string): string => {
-    const tree = new BinaryTree([JSON.parse(n1), JSON.parse(n2)] as never);
-    reduceTree(tree);
-    return tree.stringify();
+const stringify = (n: never[]): string => {
+    if (!Array.isArray(n))
+        return (n as Value).value.toString();
+
+    return `[${stringify(n[0])},${stringify(n[1])}]`;
 };
+
+const magnitude = (n: never[]): number => {
+    if (!Array.isArray(n))
+        return (n as Value).value;
+
+    return 3 * magnitude(n[0]) + 2 * magnitude(n[1]);
+};
+
+const add = (a: never, b: never): never[] => reduce([a, b]);
 
 
 (() => {
-    let result: string = numbers[0];
+    let sum: never = parse(numbers[0]);
 
-    for (let i = 1; i < numbers.length; i++) {
-        result = addNumbers(result, numbers[i]);
-    }
+    for (let i = 1; i < numbers.length; i++)
+        sum = add(sum, parse(numbers[i])) as never;
 
-    const magnitude = new BinaryTree(JSON.parse(result) as never).magnitude();
-    console.log('PART 1:', magnitude);
+    const result = magnitude(sum);
+    console.log('PART 1:', result);
 })();
 
 (() => {
-    let largestMagnitude = 0;
+    let maxMagnitude = 0;
 
-    for (let i = 0; i < numbers.length; i++)
-        for (let j = 0; j < numbers.length; j++) {
-            if (i === j) continue;
+    for (let i = 0; i < numbers.length - 1; i++)
+        for (let j = i + 1; j < numbers.length; j++)
+            maxMagnitude = Math.max(
+                maxMagnitude,
+                magnitude(add(parse(numbers[i]), parse(numbers[j]))),
+                magnitude(add(parse(numbers[j]), parse(numbers[i]))),
+            );
 
-            const magnitude = new BinaryTree(JSON.parse(addNumbers(numbers[i], numbers[j])) as never).magnitude();
-            if (magnitude > largestMagnitude)
-                largestMagnitude = magnitude;
-        }
-
-    console.log('PART 2:', largestMagnitude);
+    console.log('PART 2:', maxMagnitude);
 })();
